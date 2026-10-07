@@ -101,9 +101,11 @@ CREATE TABLE ozon.storage_row (
     warehouse_name text,
     cluster_id bigint REFERENCES ozon.cluster,
     supply_id text,
+    row_day date,
     free_until date,
     free_days_left integer,
     quantity numeric,
+    paid_quantity numeric,
     fee numeric,
     raw jsonb NOT NULL,
     PRIMARY KEY(report_id,row_number)
