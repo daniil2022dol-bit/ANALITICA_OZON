@@ -1,0 +1,22 @@
+[Unit]
+Description=Ozon mobile analytics dashboard
+After=network.target postgresql.service
+
+[Service]
+User=ozon
+Group=ozon
+WorkingDirectory=/opt/ozon-analytics
+EnvironmentFile=/etc/ozon-analytics/service.env
+Environment=PYTHONPATH=/opt/ozon-analytics/src
+ExecStart=/opt/ozon-analytics/.venv/bin/uvicorn ozon_analytics.web:app --host 172.17.0.1 --port 8090 --workers 1 --proxy-headers --forwarded-allow-ips=172.17.0.0/16,172.18.0.0/16,172.19.0.0/16,127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=384M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Renew short-lived IP certificate and reload existing proxy
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/opt/ozon-certbot/bin/certbot renew --config-dir /etc/ozon-analytics/letsencrypt --work-dir /var/lib/ozon-certbot --logs-dir /var/log/ozon-certbot --quiet --deploy-hook /opt/ozon-analytics/ops/install_certificate.sh

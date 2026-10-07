@@ -1,0 +1,8 @@
+[Unit]
+Description=Host monitoring every five minutes
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=ozon-monitor.service
+[Install]
+WantedBy=timers.target

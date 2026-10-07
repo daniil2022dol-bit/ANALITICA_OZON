@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly backup on Sunday Moscow time
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Europe/Moscow
+RandomizedDelaySec=300
+Persistent=true
+Unit=ozon-backup.service
+[Install]
+WantedBy=timers.target
