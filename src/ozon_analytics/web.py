@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import hmac
+import json
 import secrets
 import time
 from datetime import date
@@ -11,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .auth import verify_password
 from .config import settings
 from .database import connect
 from .queries import dashboard
@@ -21,11 +23,41 @@ app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 attempts = {}
 
 
-def create_session(now=None):
+def configured_users():
+    users = {}
+    if settings.admin_password:
+        users[settings.admin_user] = ("plain", settings.admin_password)
+    try:
+        extra = json.loads(settings.dashboard_users_json)
+    except (ValueError, TypeError):
+        extra = {}
+    if isinstance(extra, dict):
+        for username, password_hash in extra.items():
+            if (
+                isinstance(username, str)
+                and isinstance(password_hash, str)
+                and username != settings.admin_user
+            ):
+                users[username] = ("scrypt", password_hash)
+    return users
+
+
+def credential_tag(username):
+    credential = configured_users().get(username)
+    return hashlib.sha256(credential[1].encode()).hexdigest() if credential else None
+
+
+def create_session(now=None, username=None):
     if len(settings.session_secret) < 32:
         raise RuntimeError("SESSION_SECRET must contain at least 32 characters")
+    username = username or settings.admin_user
+    tag = credential_tag(username)
+    if tag is None:
+        raise ValueError("Dashboard user is disabled")
     data = base64.urlsafe_b64encode(
-        f"{int(now or time.time()) + 7 * 86400}:{secrets.token_hex(16)}".encode()
+        json.dumps(
+            [int(now or time.time()) + 7 * 86400, username, tag, secrets.token_hex(16)]
+        ).encode()
     ).decode()
     return (
         data
@@ -42,12 +74,23 @@ def valid_session(value, now=None):
         expected = hmac.new(
             settings.session_secret.encode(), data.encode(), hashlib.sha256
         ).hexdigest()
-        expiry = int(base64.urlsafe_b64decode(data).decode().split(":")[0])
-        return (
-            len(settings.session_secret) >= 32
-            and hmac.compare_digest(signature, expected)
-            and expiry > int(now or time.time())
-        )
+        if len(settings.session_secret) < 32 or not hmac.compare_digest(
+            signature, expected
+        ):
+            return False
+        decoded = base64.urlsafe_b64decode(data).decode()
+        if decoded.startswith("["):
+            expiry, username, tag, _nonce = json.loads(decoded)
+            current_tag = credential_tag(username)
+            return (
+                isinstance(expiry, int)
+                and expiry > int(now or time.time())
+                and current_tag is not None
+                and hmac.compare_digest(tag, current_tag)
+            )
+        # Keep existing primary-account sessions valid until their normal expiry.
+        expiry = int(decoded.split(":")[0])
+        return bool(settings.admin_password) and expiry > int(now or time.time())
     except (AttributeError, ValueError, TypeError):
         return False
 
@@ -109,16 +152,19 @@ async def login(request: Request):
     attempts[ip] = recent + [now]
     password = form.get("password", [""])[0]
     username = form.get("username", [""])[0]
-    if not settings.admin_password or not (
-        secrets.compare_digest(password, settings.admin_password)
-        and secrets.compare_digest(username, settings.admin_user)
-    ):
+    credential = configured_users().get(username)
+    authenticated = credential is not None and (
+        secrets.compare_digest(password.encode(), credential[1].encode())
+        if credential[0] == "plain"
+        else verify_password(password, credential[1])
+    )
+    if not authenticated:
         return RedirectResponse("/login?error=1", status_code=303)
     attempts.pop(ip, None)
     response = RedirectResponse("/", status_code=303)
     response.set_cookie(
         "ozon_session",
-        create_session(),
+        create_session(username=username),
         secure=settings.secure_cookies,
         httponly=True,
         samesite="strict",

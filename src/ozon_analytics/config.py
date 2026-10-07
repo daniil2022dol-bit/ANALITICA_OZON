@@ -16,6 +16,7 @@ class Settings:
     api_key_expires_at: str = os.getenv("OZON_API_KEY_EXPIRES_AT", "")
     admin_user: str = os.getenv("ADMIN_USER", "analytics")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "")
+    dashboard_users_json: str = os.getenv("DASHBOARD_USERS_JSON", "{}")
     session_secret: str = os.getenv("SESSION_SECRET", "")
     secure_cookies: bool = os.getenv("SECURE_COOKIES", "true").lower() == "true"
     data_dir: Path = Path(os.getenv("DATA_DIR", "var"))
