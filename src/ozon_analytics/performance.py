@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from psycopg import sql
@@ -185,6 +186,8 @@ def ingest_daily(kind, data, start, end):
 
 
 def ingest_sku(data, start, end, campaigns, source):
+    if source == "detail" and {int(c) for c in data} != set(campaigns):
+        raise ValueError("Incomplete campaign export response")
     rows = (
         data["rows"]
         if source == "sku"
@@ -459,7 +462,7 @@ def reports(api):
                     body=report["parameters"],
                     exports=max(1, len(report["campaigns"])),
                 )
-                code = data["UUID"]
+                code = str(UUID(data["UUID"]))
             except (DeferredRequest, RejectedRequest) as exc:
                 with connect() as conn:
                     conn.execute(

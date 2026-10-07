@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Performance sync and pending report resumption
+[Timer]
+OnCalendar=*-*-* 10:10:00 Europe/Moscow
+OnCalendar=*-*-* 10..23:00,30:00 Europe/Moscow
+RandomizedDelaySec=60
+Persistent=true
+Unit=ozon-performance.service
+[Install]
+WantedBy=timers.target

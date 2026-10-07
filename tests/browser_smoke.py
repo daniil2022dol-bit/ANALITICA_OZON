@@ -30,6 +30,15 @@ def main():
                 has_touch=width < 800,
             )
             errors = []
+            advertising_requests = []
+            page.on(
+                "request",
+                lambda request, captured=advertising_requests: (
+                    captured.append(request.url)
+                    if "/api/advertising?" in request.url
+                    else None
+                ),
+            )
             page.on(
                 "pageerror", lambda error, captured=errors: captured.append(str(error))
             )
@@ -46,9 +55,30 @@ def main():
             page.get_by_role("button", name="Войти").click()
             page.wait_for_selector("#overview .kpi")
             page.screenshot(path=str(folder / f"{width}-overview.png"), full_page=True)
-            for tab in ["stocks", "sales", "storage", "server"]:
+            assert not advertising_requests, "Advertising must load lazily"
+            for tab in ["stocks", "sales", "storage", "advertising", "server"]:
                 page.locator(f'button[data-tab="{tab}"]').click()
                 assert page.locator(f"#{tab}").is_visible()
+                if tab == "advertising":
+                    page.wait_for_selector("#advertising .kpi")
+                    assert advertising_requests
+                    page.locator("#filter-summary").click()
+                    assert not page.locator("#cluster").is_visible()
+                    assert page.locator("#campaign").is_visible()
+                    options = page.locator("#campaign option").all()
+                    if len(options) > 1:
+                        page.locator("#campaign").select_option(
+                            options[1].get_attribute("value")
+                        )
+                        with page.expect_response(
+                            lambda r: "/api/advertising?" in r.url
+                        ) as result:
+                            page.locator("#apply").click()
+                        assert result.value.status == 200
+                    if not page.locator("#campaign").is_visible():
+                        page.locator("#filter-summary").click()
+                    page.locator("#campaign").select_option("")
+                    page.locator("#filter-panel").evaluate("e=>e.open=false")
                 assert not page.locator("#error").is_visible()
                 assert not page.evaluate(
                     "document.documentElement.scrollWidth>innerWidth"
