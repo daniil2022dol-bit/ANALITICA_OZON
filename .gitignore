@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.codex-repo-import/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+var/
+playwright-report/
+test-results/
