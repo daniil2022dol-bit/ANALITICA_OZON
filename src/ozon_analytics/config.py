@@ -25,6 +25,14 @@ class Settings:
     history_days: int = min(28, max(1, int(os.getenv("HISTORY_DAYS", "14"))))
     lead_days: int = int(os.getenv("REPLENISHMENT_LEAD_DAYS", "14"))
     safety_days: int = int(os.getenv("SAFETY_STOCK_DAYS", "7"))
+    performance_client_id: str = os.getenv("OZON_PERFORMANCE_CLIENT_ID", "")
+    performance_secret: str = os.getenv("OZON_PERFORMANCE_CLIENT_SECRET", "")
+    ads_daily_limit: int = min(
+        200, max(1, int(os.getenv("ADS_DAILY_REQUEST_LIMIT", "100")))
+    )
+    ads_export_limit: int = min(
+        120, max(1, int(os.getenv("ADS_DAILY_EXPORT_LIMIT", "100")))
+    )
 
 
 settings = Settings()
