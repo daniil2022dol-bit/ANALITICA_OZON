@@ -24,6 +24,14 @@ POST_PATHS = {
 }
 
 
+class DeferredRequest(APIError):
+    """No report request was sent; safe to keep the job queued."""
+
+
+class RejectedRequest(APIError):
+    """API explicitly rejected the request; no successful export UUID exists."""
+
+
 def allowed(method, path):
     # Some Performance GET methods change bids or activate advertising!
     return (method == "POST" and path in POST_PATHS) or (
@@ -57,7 +65,9 @@ class PerformanceAPI:
                     else 0
                 )
                 if wait > 300:
-                    raise APIError("Performance cooldown active; resume on next timer")
+                    raise DeferredRequest(
+                        "Performance cooldown active; resume on next timer"
+                    )
                 if not wait:
                     counts = conn.execute(
                         "SELECT count(*) n,coalesce(sum(export_cost),0) exports FROM ozon.ads_api_call WHERE client_id=%s AND called_at>=now()-interval '24 hours'",
@@ -67,7 +77,9 @@ class PerformanceAPI:
                         counts["n"] >= settings.ads_daily_limit
                         or counts["exports"] + exports > settings.ads_export_limit
                     ):
-                        raise APIError("Performance rolling 24-hour budget reached")
+                        raise DeferredRequest(
+                            "Performance rolling 24-hour budget reached"
+                        )
                     conn.execute(
                         "INSERT INTO ozon.ads_api_cooldown VALUES(%s,%s) ON CONFLICT(client_id) DO UPDATE SET next_allowed_at=EXCLUDED.next_allowed_at",
                         (
@@ -112,7 +124,8 @@ class PerformanceAPI:
                 if response.status_code in (400, 401, 403)
                 else 120
             )
-            raise APIError(f"Performance HTTP {response.status_code}: {path}")
+            error = RejectedRequest if response.status_code < 500 else APIError
+            raise error(f"Performance HTTP {response.status_code}: {path}")
         if len(response.content) > 50 * 1024 * 1024:
             raise APIError("Performance report exceeds 50MB")
         try:
@@ -132,17 +145,22 @@ class PerformanceAPI:
             raise APIError("Performance endpoint outside read/report allowlist")
         if not self.token or time.monotonic() >= self.expires:
             if not settings.performance_client_id or not settings.performance_secret:
-                raise APIError("Performance credentials are not configured")
-            data = self.send(
-                "POST",
-                "/api/client/token",
-                body={
-                    "client_id": settings.performance_client_id,
-                    "client_secret": settings.performance_secret,
-                    "grant_type": "client_credentials",
-                },
-                token=True,
-            )
+                raise DeferredRequest("Performance credentials are not configured")
+            try:
+                data = self.send(
+                    "POST",
+                    "/api/client/token",
+                    body={
+                        "client_id": settings.performance_client_id,
+                        "client_secret": settings.performance_secret,
+                        "grant_type": "client_credentials",
+                    },
+                    token=True,
+                )
+            except APIError:
+                raise DeferredRequest(
+                    "Performance authentication deferred; no report request sent"
+                ) from None
             self.token = data["access_token"]
             self.expires = time.monotonic() + max(1, int(data["expires_in"]) - 60)
         return self.send(method, path, body=body, params=params, exports=exports)
