@@ -16,3 +16,4 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/backups/ozon-analytics
+ReadWritePaths=/opt/ozon-analytics/var

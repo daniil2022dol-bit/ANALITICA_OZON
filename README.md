@@ -217,7 +217,10 @@ PYTHONPATH=src .venv/bin/python ops/verify_restore.py /var/backups/ozon-analytic
 **Внешнее хранилище пока не подключено:** пользователь ещё не предоставил
 адрес и доступ. Для S3/другого поддерживаемого хранилища настроить защищённый
 rclone config, добавить в service.env `BACKUP_REMOTE=remote:bucket/ozon`
-и `RCLONE_CONFIG=/etc/ozon-analytics/rclone.conf`, установить rclone.
+и `RCLONE_CONFIG=/opt/ozon-analytics/var/rclone.conf`, установить rclone.
+Файл config должен принадлежать `ozon:ozon` с правами 0600; каталог var — 0700.
+Backup-unit разрешает запись в var для обновляемых токенов rclone; config
+не входит в Git и не включается в архив исходных отчётов.
 До этого `offsite=false` честно отображается в интерфейсе. Локальная копия
 не защищает от потери самого сервера. Внешние копии с шифрованием лучше
 настроить через rclone crypt после получения места хранения и ключа.
