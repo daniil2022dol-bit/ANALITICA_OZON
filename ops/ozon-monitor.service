@@ -1,0 +1,16 @@
+[Unit]
+Description=Store host RAM, CPU and disk metrics
+After=postgresql.service
+[Service]
+Type=oneshot
+User=ozon
+Group=ozon
+WorkingDirectory=/opt/ozon-analytics
+EnvironmentFile=/etc/ozon-analytics/service.env
+Environment=PYTHONPATH=/opt/ozon-analytics/src
+ExecStart=/opt/ozon-analytics/.venv/bin/python -m ozon_analytics.cli monitor
+MemoryMax=128M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true

@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew IP TLS certificate twice daily
+[Timer]
+OnCalendar=*-*-* 04,16:00:00
+RandomizedDelaySec=1800
+Persistent=true
+[Install]
+WantedBy=timers.target
