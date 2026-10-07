@@ -2,7 +2,7 @@
 Description=Daily data collection and durable report resumption
 [Timer]
 OnCalendar=*-*-* 09:10:00 Europe/Moscow
-OnCalendar=*-*-* *:00,30:00 Europe/Moscow
+OnCalendar=*-*-* 09..23:00,30:00 Europe/Moscow
 RandomizedDelaySec=60
 Persistent=true
 Unit=ozon-collect.service
