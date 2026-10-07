@@ -84,3 +84,31 @@ ORDER BY pg_total_relation_size(relid) DESC;
 -- транзакционно: api_response, stock_daily, затем ingest_run.
 -- FK запрещает удаление ingest_run, на который ссылается published_snapshot.
 -- Удаление истории/расписание очистки эта схема автоматически не запускает.
+
+-- 6. Заказанные товары FBO и сумма заказов по московским дням.
+-- Валюты не складывать друг с другом. Отмены видны отдельно.
+SELECT day, currency, sum(quantity) AS ordered_units,
+       sum(ordered_amount) AS ordered_amount,
+       sum(quantity) FILTER (WHERE status = 'cancelled') AS cancelled_units
+FROM ozon.v_sales_fbo
+WHERE client_id = 123456 AND day BETWEEN DATE '2026-10-01' AND DATE '2026-10-07'
+GROUP BY day, currency ORDER BY day, currency;
+
+-- 7. Откуда и куда идут заказы. Исходные коды регионов из financial_data.
+SELECT cluster_from, cluster_to, currency,
+       sum(quantity) AS units, sum(ordered_amount) AS amount
+FROM ozon.v_sales_fbo
+WHERE client_id = 123456 AND day BETWEEN DATE '2026-10-01' AND DATE '2026-10-07'
+GROUP BY cluster_from, cluster_to, currency ORDER BY units DESC;
+
+-- 8. Партии с остатком: дни бесплатного хранения из последнего отчёта.
+-- Не использовать сводную строку SKU: supply_id обязателен.
+SELECT s.sku, s.warehouse_name, s.supply_id, s.quantity, s.free_until,
+       s.free_days_left - (DATE '2026-10-07' - r.day) AS days_remaining
+FROM ozon.storage_row s JOIN ozon.storage_report r ON r.id = s.report_id
+WHERE r.client_id = 123456 AND r.kind = 'supplies' AND r.status = 'success'
+  AND r.day = (SELECT max(day) FROM ozon.storage_report
+               WHERE client_id = 123456 AND kind = 'supplies' AND status = 'success'
+                 AND day <= DATE '2026-10-07')
+  AND s.supply_id IS NOT NULL AND s.quantity > 0
+ORDER BY days_remaining NULLS LAST, s.sku;
