@@ -87,6 +87,12 @@ Performance Client ID/secret сохранены в ENV для последующ
 данная версия не обращается к Performance API и не меняет кампании.
 Документация: [Performance API](https://docs.ozon.ru/api/performance/).
 
+Текущий Seller-ключ по ответу `/v1/roles` истекает **05.01.2027**.
+Дата записана в `OZON_API_KEY_EXPIRES_AT`, видна в разделе сервера;
+за 30 дней появится предупреждение на главном экране. До истечения нужно
+обновить ключ и его дату в защищённом ENV и перезапустить веб/сборщик.
+Ключи сами не продлеваются; для годовой непрерывной истории это необходимый шаг.
+
 ## Прогноз и хранение
 
 Прозрачная базовая модель: доступный остаток / средние заказы за 14 полных дней.
@@ -226,6 +232,7 @@ Python ≥3.12, зависимости фиксируются `uv.lock` и hash-
 ```sh
 uv sync
 docker run -d --rm --name ozon-service-tests -e POSTGRES_HOST_AUTH_METHOD=trust -p 127.0.0.1:55432:5432 postgres:16-alpine
+docker exec ozon-service-tests sh -c 'until pg_isready -h 127.0.0.1 -U postgres -q; do sleep 1; done'
 docker exec ozon-service-tests createdb -U postgres ozon_test
 TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/ozon_test uv run pytest -q
 docker exec -i ozon-service-tests psql -U postgres -d ozon_test -v ON_ERROR_STOP=1 < db/tests.sql

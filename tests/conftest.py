@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 import pytest
 
@@ -17,7 +18,7 @@ if TEST_URL:
 
 @pytest.fixture
 def db():
-    if not TEST_URL or "ozon_test" not in TEST_URL:
+    if not TEST_URL or not urlparse(TEST_URL).path.lstrip("/").startswith("ozon_test"):
         pytest.skip("Provide a disposable TEST_DATABASE_URL containing ozon_test")
     from ozon_analytics.database import connect, migrate
 

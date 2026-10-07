@@ -13,6 +13,7 @@ class Settings:
     web_database_url: str = os.getenv("WEB_DATABASE_URL", os.getenv("DATABASE_URL", ""))
     client_id: int = int(os.getenv("OZON_CLIENT_ID", "0"))
     api_key: str = os.getenv("OZON_API_KEY", "")
+    api_key_expires_at: str = os.getenv("OZON_API_KEY_EXPIRES_AT", "")
     admin_user: str = os.getenv("ADMIN_USER", "analytics")
     admin_password: str = os.getenv("ADMIN_PASSWORD", "")
     session_secret: str = os.getenv("SESSION_SECRET", "")

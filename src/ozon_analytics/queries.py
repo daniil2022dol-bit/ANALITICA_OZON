@@ -9,6 +9,12 @@ from .forecast import forecast
 def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
     client = settings.client_id
     day = datetime.now(ZoneInfo("Europe/Moscow")).date()
+    try:
+        expiry = datetime.fromisoformat(settings.api_key_expires_at).astimezone(
+            ZoneInfo("Europe/Moscow")
+        )
+    except ValueError:
+        expiry = None
     with connect(web=True) as conn:
         params = [client, date_from, date_to]
         conditions = ["s.client_id=%s", "s.day BETWEEN %s AND %s"]
@@ -293,4 +299,6 @@ def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
             "today": day,
             "forecast_days": forecast_coverage,
             "currency": "RUB",
+            "api_key_expires_at": expiry,
+            "api_key_days_remaining": (expiry.date() - day).days if expiry else None,
         }
