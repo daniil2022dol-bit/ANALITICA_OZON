@@ -494,18 +494,23 @@ def collect_sales(api):
         # refreshes, otherwise cancellations arriving late would remain stale.
         pending = list(
             conn.execute(
-                "SELECT posting_number FROM ozon.posting WHERE client_id=%s AND created_at<%s AND status NOT IN ('delivered','cancelled')",
+                "SELECT posting_number,created_at FROM ozon.posting WHERE client_id=%s AND created_at<%s AND status NOT IN ('delivered','cancelled') ORDER BY created_at,posting_number",
                 (settings.client_id, datetime.combine(start, datetime.min.time(), MSK)),
             )
         )
     for i in range(0, len(pending), 100):
+        batch = pending[i : i + 100]
+        # Ozon requires dates even when filtering by posting_numbers. Bound the
+        # requested batch explicitly; do not retry the same invalid request.
+        earliest = min(r["created_at"] for r in batch) - timedelta(seconds=1)
+        latest = max(r["created_at"] for r in batch) + timedelta(seconds=1)
         data = api.post(
             "/v3/posting/fbo/list",
             {
                 "filter": {
-                    "posting_numbers": [
-                        r["posting_number"] for r in pending[i : i + 100]
-                    ]
+                    "posting_numbers": [r["posting_number"] for r in batch],
+                    "since": earliest.astimezone(MSK).isoformat(),
+                    "to": latest.astimezone(MSK).isoformat(),
                 },
                 "limit": 100,
                 "with": {"analytics_data": True, "financial_data": True},

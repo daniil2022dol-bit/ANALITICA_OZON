@@ -161,3 +161,65 @@ def test_cluster_backfill_requires_same_day_snapshot(db):
         }
     assert mapping["P-TODAY"] == 20
     assert mapping["P-1"] is None
+
+
+def test_old_pending_postings_refresh_with_required_dates(db):
+    day = collector.today()
+    template = FakeAPI().post("/v3/posting/fbo/list", {})["postings"][0]
+    old = [
+        dict(
+            template,
+            posting_number=f"OLD-{n}",
+            status="delivering",
+            created_at=datetime.combine(
+                day - timedelta(days=n), datetime.min.time(), collector.MSK
+            ).isoformat(),
+        )
+        for n in (8, 10)
+    ]
+    with db() as conn:
+        collector.save_postings(conn, old, {}, day)
+        for n in range(2, collector.settings.history_days + 1):
+            conn.execute(
+                "INSERT INTO ozon.sales_coverage(client_id,day) VALUES(123,%s)",
+                (day - timedelta(days=n),),
+            )
+
+    class PendingAPI(FakeAPI):
+        def post(self, endpoint, body):
+            filters = body.get("filter", {})
+            if endpoint == "/v3/posting/fbo/list" and "posting_numbers" in filters:
+                self.calls.append((endpoint, body))
+                assert set(filters["posting_numbers"]) == {
+                    p["posting_number"] for p in old
+                }
+                since, to = (
+                    datetime.fromisoformat(filters[k]) for k in ("since", "to")
+                )
+                assert all(
+                    since < datetime.fromisoformat(p["created_at"]) < to for p in old
+                )
+                return {
+                    "postings": [dict(p, status="cancelled") for p in old],
+                    "has_next": False,
+                }
+            return super().post(endpoint, body)
+
+    api = PendingAPI()
+    collector.collect_sales(api)
+    refreshed = [
+        body
+        for endpoint, body in api.calls
+        if endpoint == "/v3/posting/fbo/list" and "posting_numbers" in body["filter"]
+    ]
+    assert len(refreshed) == 1
+    with db() as conn:
+        assert list(
+            conn.execute(
+                "SELECT status FROM ozon.posting WHERE posting_number LIKE 'OLD-%'"
+            )
+        ) == [{"status": "cancelled"}, {"status": "cancelled"}]
+        assert (
+            conn.execute("SELECT count(*) n FROM ozon.posting_item").fetchone()["n"]
+            == 3
+        )
