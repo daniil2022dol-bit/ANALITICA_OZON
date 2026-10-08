@@ -79,6 +79,79 @@ def upsert_product(conn, item):
     )
 
 
+def location_kind(name):
+    if not name:
+        return "unknown"
+    return "pickup" if name.upper().startswith("ПВЗ_") else "warehouse"
+
+
+def save_product_info(data, product_ids, observed):
+    """Enrich the catalogue and store independent inventory without inventing totals."""
+    items = data["items"]
+    if {int(p["id"]) for p in items} != set(product_ids) or len(items) != len(
+        product_ids
+    ):
+        raise APIError("Incomplete or duplicate product info response")
+    rows, seen, skus = [], set(), set()
+    for item in items:
+        if not item.get("sku") or not item.get("name"):
+            raise APIError("Product info is missing SKU/name")
+        skus.add(int(item["sku"]))
+        for stock in item.get("stocks", {}).get("stocks", []):
+            key = (int(stock["sku"]), stock["source"].lower())
+            if key in seen:
+                raise APIError("Duplicate product inventory grain")
+            seen.add(key)
+            rows.append((item, stock, key))
+            if key[1] == "fbo":
+                skus.add(key[0])
+    with connect() as conn:
+        for item in items:
+            metadata = dict(
+                item,
+                product_id=item["id"],
+                archived=bool(item.get("is_archived") or item.get("is_autoarchived")),
+            )
+            upsert_product(conn, metadata)
+            for stock in item.get("stocks", {}).get("stocks", []):
+                if stock["source"].lower() == "fbo" and int(stock["sku"]) != int(
+                    item["sku"]
+                ):
+                    upsert_product(conn, dict(metadata, sku=stock["sku"]))
+        conn.execute(
+            "INSERT INTO ozon.product_info_snapshot VALUES(%s,%s,%s,%s,%s) ON CONFLICT(client_id,day) DO UPDATE SET observed_at=EXCLUDED.observed_at,requested_product_ids=EXCLUDED.requested_product_ids,response_body=EXCLUDED.response_body",
+            (
+                settings.client_id,
+                observed.astimezone(MSK).date(),
+                observed,
+                product_ids,
+                Jsonb(data),
+            ),
+        )
+        conn.execute(
+            "DELETE FROM ozon.inventory_daily WHERE client_id=%s AND day=%s",
+            (settings.client_id, observed.astimezone(MSK).date()),
+        )
+        for item, stock, (sku, source) in rows:
+            conn.execute(
+                "INSERT INTO ozon.inventory_daily VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    settings.client_id,
+                    observed.astimezone(MSK).date(),
+                    sku,
+                    source,
+                    item["id"],
+                    item["offer_id"],
+                    item["name"],
+                    stock.get("present"),
+                    stock.get("reserved"),
+                    observed,
+                    Jsonb(stock),
+                ),
+            )
+    return sorted(skus)
+
+
 def collect_products(api):
     result = {}
     for visibility in ("ALL", "ARCHIVED"):
@@ -106,6 +179,22 @@ def collect_products(api):
             upsert_product(conn, item)
     if not result:
         raise APIError("No SKU found; empty snapshot will not be published")
+    product_ids = sorted(
+        {int(p["product_id"]) for p in result.values() if p.get("product_id")}
+    )
+    if product_ids:
+        items = []
+        for offset in range(0, len(product_ids), 1000):
+            items.extend(
+                api.post(
+                    "/v3/product/info/list",
+                    {"product_id": product_ids[offset : offset + 1000]},
+                )["items"]
+            )
+        return sorted(
+            set(result)
+            | set(save_product_info({"items": items}, product_ids, datetime.now(UTC)))
+        )
     return sorted(result)
 
 
@@ -183,6 +272,8 @@ def collect_stocks(api):
                         "cluster_id",
                         "macrolocal_cluster_id",
                         "observed_at",
+                        "location_kind",
+                        "warehouse_name_snapshot",
                     ] + STOCK_FIELDS
                     values = [
                         run,
@@ -192,6 +283,8 @@ def collect_stocks(api):
                         cluster,
                         macro_id,
                         observed,
+                        location_kind(row["warehouse_name"]),
+                        row["warehouse_name"],
                     ] + [stock_value(row, f) for f in STOCK_FIELDS]
                     conn.execute(
                         sql.SQL("INSERT INTO ozon.stock_daily ({}) VALUES ({})").format(

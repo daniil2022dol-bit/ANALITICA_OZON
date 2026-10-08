@@ -110,3 +110,40 @@ def test_429_waits_then_retries_without_spamming(db):
             r["status"]
             for r in conn.execute("SELECT status FROM ozon.api_call ORDER BY id")
         ] == [429, 200]
+
+
+def test_repeated_429_defers_for_fifteen_minutes_and_records_safe_headers(db):
+    calls, waits = [], []
+
+    def respond(request):
+        calls.append(request)
+        return httpx.Response(
+            429,
+            json={"code": 8},
+            headers={
+                "Retry-After": "2",
+                "RateLimit-Limit": "50",
+                "Api-Key": "never-save",
+            },
+        )
+
+    def advance(seconds):
+        waits.append(seconds)
+        with db() as conn:
+            conn.execute("DELETE FROM ozon.api_cooldown")
+
+    client = api.SellerAPI(
+        httpx.Client(transport=httpx.MockTransport(respond)), sleeper=advance
+    )
+    with pytest.raises(api.APIError, match="Cooldown active"):
+        client.post("/v1/analytics/stocks", {"skus": ["1"]})
+    assert len(calls) == 2 and len(waits) == 1
+    with db() as conn:
+        row = conn.execute(
+            "SELECT next_allowed_at-now() AS delay FROM ozon.api_cooldown WHERE endpoint='*'"
+        ).fetchone()
+        assert row["delay"].total_seconds() > 890
+        headers = conn.execute(
+            "SELECT rate_limit_headers FROM ozon.api_call ORDER BY id DESC LIMIT 1"
+        ).fetchone()["rate_limit_headers"]
+        assert headers == {"retry-after": "2", "ratelimit-limit": "50"}
