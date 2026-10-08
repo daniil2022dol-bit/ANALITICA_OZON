@@ -133,7 +133,7 @@ def advertising(date_from, date_to, sku=None, campaign=None):
         ).fetchone()["day"]
         stocks = list(
             conn.execute(
-                "SELECT sku,CASE WHEN bool_and(available_stock_count IS NOT NULL) THEN sum(available_stock_count) END available FROM ozon.v_stock_daily WHERE client_id=%s AND snapshot_date=%s GROUP BY sku",
+                "SELECT sku,CASE WHEN bool_and(available_stock_count IS NOT NULL) THEN sum(available_stock_count) END available FROM ozon.v_stock_daily WHERE client_id=%s AND snapshot_date=%s AND location_kind<>'pickup' GROUP BY sku",
                 (client, snapshot),
             )
         )

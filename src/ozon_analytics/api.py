@@ -21,6 +21,8 @@ READ_METHODS = frozenset(
         "/v1/roles",
         "/v1/seller/info",
         "/v3/product/list",
+        "/v3/product/info/list",
+        "/v4/product/info/stocks",
         "/v1/cluster/list",
         "/v2/cluster/list",
         "/v1/analytics/stocks",
@@ -145,12 +147,35 @@ class SellerAPI:
                     data = {"error": "Non-JSON response"}
                 with connect() as conn:
                     conn.execute(
-                        "UPDATE ozon.api_call SET status=%s,response_body=%s WHERE id=%s",
-                        (response.status_code, Jsonb(data), call_id),
+                        "UPDATE ozon.api_call SET status=%s,response_body=%s,rate_limit_headers=%s WHERE id=%s",
+                        (
+                            response.status_code,
+                            Jsonb(data),
+                            Jsonb(
+                                {
+                                    key: response.headers[key]
+                                    for key in (
+                                        "retry-after",
+                                        "ratelimit-remaining",
+                                        "ratelimit-limit",
+                                        "ratelimit-reset",
+                                    )
+                                    if key in response.headers
+                                }
+                            ),
+                            call_id,
+                        ),
                     )
                     if response.status_code == 429:
+                        recent = conn.execute(
+                            "SELECT count(*) AS n FROM ozon.api_call WHERE client_id=%s AND endpoint=%s AND status=429 AND called_at>now()-interval '15 minutes'",
+                            (settings.client_id, endpoint),
+                        ).fetchone()["n"]
                         cooldown = datetime.now(UTC) + timedelta(
-                            seconds=retry_after(response.headers.get("Retry-After"))
+                            seconds=max(
+                                retry_after(response.headers.get("Retry-After")),
+                                900 if recent >= 2 else 60,
+                            )
                         )
                         conn.execute(
                             "INSERT INTO ozon.api_cooldown VALUES(%s,'*',%s) ON CONFLICT(client_id,endpoint) DO UPDATE SET next_allowed_at=greatest(ozon.api_cooldown.next_allowed_at,EXCLUDED.next_allowed_at)",

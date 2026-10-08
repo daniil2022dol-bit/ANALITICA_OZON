@@ -17,6 +17,7 @@ from .auth import verify_password
 from .config import settings
 from .database import connect
 from .queries import dashboard
+from .stock_queries import stock_source
 
 ROOT = Path(__file__).parent
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -200,11 +201,43 @@ def data(
     sku: int | None = None,
     cluster: int | None = None,
     warehouse: int | None = None,
+    include_pickup: bool = False,
+    include_archived: bool = False,
 ):
     if date_to < date_from or (date_to - date_from).days > 366:
         raise HTTPException(422, "Допустимый диапазон: до 366 дней")
     return JSONResponse(
-        jsonable_encoder(dashboard(date_from, date_to, sku, cluster, warehouse))
+        jsonable_encoder(
+            dashboard(
+                date_from,
+                date_to,
+                sku,
+                cluster,
+                warehouse,
+                include_pickup,
+                include_archived,
+            )
+        )
+    )
+
+
+@app.get("/api/stocks/source")
+def stocks_source(
+    day: date,
+    sku: int | None = None,
+    warehouse: int | None = None,
+    kind: str = "analytics",
+):
+    if kind not in ("analytics", "catalog"):
+        raise HTTPException(422, "Unknown source")
+    source = stock_source(day, sku, warehouse, kind)
+    if source is None:
+        raise HTTPException(404, "Нет снимка за выбранную дату")
+    return JSONResponse(
+        jsonable_encoder(source),
+        headers={
+            "Content-Disposition": f'attachment; filename="ozon-stock-{kind}-{day}.json"'
+        },
     )
 
 

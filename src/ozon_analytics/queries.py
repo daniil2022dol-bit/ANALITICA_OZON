@@ -4,9 +4,18 @@ from zoneinfo import ZoneInfo
 from .config import settings
 from .database import connect
 from .forecast import forecast
+from .stock_queries import stock_rows
 
 
-def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
+def dashboard(
+    date_from,
+    date_to,
+    sku=None,
+    cluster=None,
+    warehouse=None,
+    include_pickup=False,
+    include_archived=False,
+):
     client = settings.client_id
     day = datetime.now(ZoneInfo("Europe/Moscow")).date()
     try:
@@ -65,41 +74,8 @@ def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
             "SELECT max(snapshot_date) AS day FROM ozon.published_snapshot WHERE client_id=%s AND snapshot_date<=%s",
             (client, date_to),
         ).fetchone()["day"]
-        if warehouse:
-            stock_sql = """SELECT s.sku,s.warehouse_id,s.cluster_id,s.macrolocal_cluster_id,s.available_stock_count,
-               s.transit_stock_count,NULL::double precision AS ads_cluster,w.name AS warehouse_name,
-               c.name AS cluster_name,p.offer_id,p.name
-               FROM ozon.v_stock_daily s JOIN ozon.warehouse w USING(warehouse_id)
-               JOIN ozon.product p ON p.sku=s.sku AND p.client_id=s.client_id
-               LEFT JOIN ozon.cluster c USING(cluster_id)"""
-        else:
-            stock_sql = """SELECT s.sku,NULL::bigint AS warehouse_id,s.cluster_id,
-               s.available_stock_count,s.transit_stock_count,s.ads_cluster,
-               c.name AS cluster_name,p.offer_id,p.name
-               FROM ozon.v_cluster_stock_daily s JOIN ozon.product p ON p.sku=s.sku AND p.client_id=s.client_id
-               LEFT JOIN ozon.cluster c USING(cluster_id)"""
-        stock_params = [client, snapshot]
-        stock_where = ["s.client_id=%s", "s.snapshot_date=%s"]
-        for col, val in [
-            ("sku", sku),
-            ("cluster_id", cluster),
-            ("warehouse_id", warehouse),
-        ]:
-            if val is not None:
-                stock_where.append(f"s.{col}=%s")
-                stock_params.append(val)
-        stocks = (
-            list(
-                conn.execute(
-                    stock_sql
-                    + " WHERE "
-                    + " AND ".join(stock_where)
-                    + " ORDER BY p.offer_id,s.cluster_id",
-                    stock_params,
-                )
-            )
-            if snapshot
-            else []
+        stocks, stock_summary = stock_rows(
+            conn, snapshot, sku, cluster, warehouse, include_pickup
         )
         lookback = (snapshot or day) - timedelta(days=14)
         forecast_coverage = conn.execute(
@@ -241,18 +217,20 @@ def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
         options = {
             "products": list(
                 conn.execute(
-                    "SELECT sku,offer_id,name FROM ozon.product WHERE client_id=%s ORDER BY offer_id",
-                    (client,),
+                    "SELECT p.sku,p.offer_id,p.name,p.archived FROM ozon.product p WHERE p.client_id=%s AND (%s OR coalesce(p.archived,false)=false OR EXISTS(SELECT 1 FROM ozon.v_stock_daily s WHERE s.client_id=p.client_id AND s.sku=p.sku AND s.snapshot_date=%s AND (s.available_stock_count>0 OR s.return_to_seller_stock_count>0))) ORDER BY p.offer_id",
+                    (client, include_archived, snapshot),
                 )
             ),
             "clusters": list(
                 conn.execute(
-                    "SELECT cluster_id AS id,name FROM ozon.cluster ORDER BY name"
+                    "SELECT c.cluster_id AS id,c.name FROM ozon.cluster c WHERE EXISTS(SELECT 1 FROM ozon.v_stock_daily s WHERE s.client_id=%s AND s.cluster_id=c.cluster_id AND s.snapshot_date=%s AND (%s OR s.location_kind<>'pickup')) ORDER BY c.name",
+                    (client, snapshot, include_pickup),
                 )
             ),
             "warehouses": list(
                 conn.execute(
-                    "SELECT warehouse_id AS id,name FROM ozon.warehouse ORDER BY name"
+                    "SELECT w.warehouse_id AS id,w.name FROM ozon.warehouse w WHERE (%s OR left(upper(w.name),4)<>'ПВЗ_') AND (EXISTS(SELECT 1 FROM ozon.v_stock_daily s WHERE s.client_id=%s AND s.warehouse_id=w.warehouse_id AND s.snapshot_date=%s) OR EXISTS(SELECT 1 FROM ozon.posting p WHERE p.client_id=%s AND p.warehouse_id=w.warehouse_id AND (p.created_at AT TIME ZONE 'Europe/Moscow')::date BETWEEN %s AND %s)) ORDER BY w.name",
+                    (include_pickup, client, snapshot, client, date_from, date_to),
                 )
             ),
         }
@@ -262,6 +240,8 @@ def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
         # Historical daily stock chart, never forward-fill missing snapshots.
         history_params = [client, date_from, date_to]
         history_where = ["s.client_id=%s", "s.snapshot_date BETWEEN %s AND %s"]
+        if not include_pickup:
+            history_where.append("s.location_kind<>'pickup'")
         for col, val in [
             ("sku", sku),
             ("cluster_id", cluster),
@@ -284,6 +264,7 @@ def dashboard(date_from, date_to, sku=None, cluster=None, warehouse=None):
             "geography": geography,
             "top_products": tops,
             "stocks": stocks,
+            "stock_summary": stock_summary,
             "storage": storage,
             "storage_fees": storage_fees,
             "coverage": coverage,

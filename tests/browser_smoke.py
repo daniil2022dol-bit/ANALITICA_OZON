@@ -62,6 +62,30 @@ def main():
             page.wait_for_url(base + "/")
             page.locator('button[data-tab="stocks"]').click()
             page.wait_for_selector("#stocks .panel")
+            assert not page.locator("#include-pickup").is_checked()
+            assert not any(
+                "ПВЗ_" in name
+                for name in page.locator("#warehouse option").all_text_contents()
+            )
+            snapshot = page.evaluate("model.snapshot_date")
+            source = page.request.get(base + f"/api/stocks/source?day={snapshot}")
+            assert (
+                source.status == 200
+                and source.json()["endpoint"] == "/v1/analytics/stocks"
+            )
+            with page.expect_response(lambda r: "/api/dashboard?" in r.url) as included:
+                page.locator("#include-pickup").check()
+            assert included.value.status == 200
+            page.wait_for_function(
+                "() => model.options.warehouses.some(w=>w.name.startsWith('ПВЗ_'))"
+            )
+            with page.expect_response(lambda r: "/api/dashboard?" in r.url) as hidden:
+                page.locator("#include-pickup").uncheck()
+            assert hidden.value.status == 200
+            page.wait_for_function(
+                "() => model.options.warehouses.every(w=>!w.name.startsWith('ПВЗ_'))"
+            )
+            assert page.evaluate("model.options.products.every(p=>p.name)")
             page.locator('button[data-tab="overview"]').click()
             page.wait_for_selector("#overview .kpi")
             page.screenshot(path=str(folder / f"{width}-overview.png"), full_page=True)
