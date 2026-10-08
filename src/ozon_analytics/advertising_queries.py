@@ -69,15 +69,18 @@ def advertising(date_from, date_to, sku=None, campaign=None):
         where += " AND campaign_id IN (SELECT c.campaign_id FROM ozon.ads_campaign c WHERE c.client_id=%s AND c.object_type='SKU')"
         params.append(client)
         table = "ads_sku_daily" if sku is not None else "ads_campaign_daily"
+        fact_columns = "day,campaign_id,views,clicks,orders,spend,revenue"
         facts = list(
             conn.execute(
-                f"SELECT * FROM ozon.{table} WHERE {where} ORDER BY day", params
+                f"SELECT {fact_columns} FROM ozon.{table} WHERE {where} ORDER BY day",
+                params,
             )
         )
         # SKU ranking always uses SKU facts; headline uses canonical campaign/day unless SKU filtered.
         products = list(
             conn.execute(
-                f"SELECT * FROM ozon.ads_sku_daily WHERE {where} ORDER BY day", params
+                f"SELECT {fact_columns},sku,carts,model_orders,model_revenue FROM ozon.ads_sku_daily WHERE {where} ORDER BY day",
+                params,
             )
         )
         coverage = list(
@@ -94,7 +97,7 @@ def advertising(date_from, date_to, sku=None, campaign=None):
         expenses = (
             list(
                 conn.execute(
-                    f"SELECT * FROM ozon.ads_expense_daily WHERE {expense_where}",
+                    f"SELECT spend,bonuses,prepayment FROM ozon.ads_expense_daily WHERE {expense_where}",
                     expense_params,
                 )
             )
@@ -109,7 +112,7 @@ def advertising(date_from, date_to, sku=None, campaign=None):
         cpo = (
             list(
                 conn.execute(
-                    f"SELECT * FROM ozon.ads_cpo_daily WHERE {cpo_where} ORDER BY day",
+                    f"SELECT day,sku,title,offer_id,orders,spend,revenue,bid_percent,bid_rubles,promotion_status FROM ozon.ads_cpo_daily WHERE {cpo_where} ORDER BY day",
                     cpo_params,
                 )
             )

@@ -75,6 +75,35 @@ def verify(path):
                 ]
             )
             counts = json.loads(result.stdout)
+            exists = run(
+                [
+                    "psql",
+                    "-X",
+                    "-qAt",
+                    "-d",
+                    database,
+                    "-c",
+                    "SELECT to_regclass('ozon.ads_campaign_daily') IS NOT NULL",
+                ]
+            )
+            if exists.stdout.strip() == "t":
+                advertising = run(
+                    [
+                        "psql",
+                        "-X",
+                        "-qAt",
+                        "-v",
+                        "ON_ERROR_STOP=1",
+                        "-d",
+                        database,
+                        "-c",
+                        """SELECT json_build_object(
+                    'ads_campaign_days',(SELECT count(*) FROM ozon.ads_campaign_daily),
+                    'ads_sku_days',(SELECT count(*) FROM ozon.ads_sku_daily),
+                    'ads_cpo_days',(SELECT count(*) FROM ozon.ads_cpo_daily))""",
+                    ]
+                )
+                counts.update(json.loads(advertising.stdout))
             print("Restored database is readable:", json.dumps(counts))
             return counts
     finally:
