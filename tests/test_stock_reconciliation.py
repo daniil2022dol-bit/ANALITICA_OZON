@@ -110,6 +110,7 @@ def test_fbo_statuses_pickup_and_archive_are_separate(db):
     assert data["stock_summary"]["inventory"]["present"] == 142
     assert data["stock_summary"]["inventory"]["reserved"] == 2
     assert data["stock_history"][0]["units"] == 105
+    assert data["stock_summary"]["observed_at"] is not None
     assert {p["sku"] for p in data["options"]["products"]} == {1, 3, 4}
     assert {w["id"] for w in data["options"]["warehouses"]} == {10}
     # Unknown statuses remain unknown; the repeated withdrawal stage is not added.

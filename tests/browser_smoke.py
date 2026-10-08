@@ -77,13 +77,13 @@ def main():
                 page.locator("#include-pickup").check()
             assert included.value.status == 200
             page.wait_for_function(
-                "model.options.warehouses.some(w=>w.name.startsWith('ПВЗ_'))"
+                "() => model.options.warehouses.some(w=>w.name.startsWith('ПВЗ_'))"
             )
             with page.expect_response(lambda r: "/api/dashboard?" in r.url) as hidden:
                 page.locator("#include-pickup").uncheck()
             assert hidden.value.status == 200
             page.wait_for_function(
-                "model.options.warehouses.every(w=>!w.name.startsWith('ПВЗ_'))"
+                "() => model.options.warehouses.every(w=>!w.name.startsWith('ПВЗ_'))"
             )
             assert page.evaluate("model.options.products.every(p=>p.name)")
             page.locator('button[data-tab="overview"]').click()

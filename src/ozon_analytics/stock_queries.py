@@ -85,7 +85,19 @@ def stock_rows(conn, snapshot, sku, cluster, warehouse, include_pickup):
             inv_params,
         ).fetchone()
         inventory["day"] = info_day
-    return rows, {"locations": breakdown, "inventory": inventory}
+    observed = (
+        conn.execute(
+            "SELECT r.finished_at FROM ozon.published_snapshot p JOIN ozon.ingest_run r USING(run_id) WHERE p.client_id=%s AND p.snapshot_date=%s",
+            (settings.client_id, snapshot),
+        ).fetchone()["finished_at"]
+        if snapshot
+        else None
+    )
+    return rows, {
+        "locations": breakdown,
+        "inventory": inventory,
+        "observed_at": observed,
+    }
 
 
 def stock_source(day, sku=None, warehouse=None, kind="analytics"):
