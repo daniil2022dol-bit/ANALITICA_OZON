@@ -4,6 +4,7 @@ import logging
 from .collector import collect
 from .database import migrate
 from .operations import backup, check_backup, monitor
+from .performance import collect_performance
 
 
 def main():
@@ -14,17 +15,35 @@ def main():
     logging.getLogger("httpx").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "command", choices=["migrate", "collect", "monitor", "backup", "check-backup"]
+        "command",
+        choices=[
+            "migrate",
+            "collect",
+            "performance-collect",
+            "monitor",
+            "backup",
+            "check-backup",
+        ],
     )
     parser.add_argument("path", nargs="?")
+    parser.add_argument(
+        "--now",
+        action="store_true",
+        help="Initial Performance sync before the daily schedule",
+    )
     args = parser.parse_args()
     if args.command == "check-backup":
         check_backup(args.path)
         print("Backup checksum verified")
+    elif args.command == "performance-collect":
+        collect_performance(force=args.now)
     else:
-        {"migrate": migrate, "collect": collect, "monitor": monitor, "backup": backup}[
-            args.command
-        ]()
+        {
+            "migrate": migrate,
+            "collect": collect,
+            "monitor": monitor,
+            "backup": backup,
+        }[args.command]()
 
 
 if __name__ == "__main__":

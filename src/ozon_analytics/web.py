@@ -12,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .advertising_queries import advertising
 from .auth import verify_password
 from .config import settings
 from .database import connect
@@ -204,4 +205,15 @@ def data(
         raise HTTPException(422, "Допустимый диапазон: до 366 дней")
     return JSONResponse(
         jsonable_encoder(dashboard(date_from, date_to, sku, cluster, warehouse))
+    )
+
+
+@app.get("/api/advertising")
+def advertising_data(
+    date_from: date, date_to: date, sku: int | None = None, campaign: int | None = None
+):
+    if date_to < date_from or (date_to - date_from).days > 366:
+        raise HTTPException(422, "Допустимый диапазон: до 366 дней")
+    return JSONResponse(
+        jsonable_encoder(advertising(date_from, date_to, sku, campaign))
     )

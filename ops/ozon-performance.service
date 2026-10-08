@@ -1,0 +1,21 @@
+[Unit]
+Description=Ozon Performance daily facts and serialized report queue
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ozon
+Group=ozon
+WorkingDirectory=/opt/ozon-analytics
+EnvironmentFile=/etc/ozon-analytics/service.env
+Environment=PYTHONPATH=/opt/ozon-analytics/src
+ExecStart=/opt/ozon-analytics/.venv/bin/python -m ozon_analytics.cli performance-collect
+TimeoutStartSec=900
+MemoryMax=384M
+Nice=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ozon-analytics/var
