@@ -58,7 +58,6 @@ def main():
             assert not advertising_requests, "Advertising must load lazily"
             for tab in ["stocks", "sales", "storage", "advertising", "server"]:
                 page.locator(f'button[data-tab="{tab}"]').click()
-                assert page.locator(f"#{tab}").is_visible()
                 if tab == "advertising":
                     page.wait_for_selector("#advertising .kpi")
                     assert advertising_requests
@@ -79,6 +78,7 @@ def main():
                         page.locator("#filter-summary").click()
                     page.locator("#campaign").select_option("")
                     page.locator("#filter-panel").evaluate("e=>e.open=false")
+                assert page.locator(f"#{tab}").is_visible(), (tab, errors)
                 assert not page.locator("#error").is_visible()
                 assert not page.evaluate(
                     "document.documentElement.scrollWidth>innerWidth"

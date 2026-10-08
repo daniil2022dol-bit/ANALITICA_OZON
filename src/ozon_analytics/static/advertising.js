@@ -26,7 +26,7 @@ function renderAdvertising(d){
  chart('ads-spend-chart',d.daily,'spend');chart('ads-revenue-chart',d.daily,'revenue','#709629');
 }
 async function loadAdvertising(){
- const request=++sequence;$('apply').disabled=true;$('error').hidden=true;
+ const request=++sequence;$('apply').disabled=true;$('error').hidden=true;if(!$('advertising').children.length)$('advertising').innerHTML=panel('Реклама',empty('Загружаем рекламную аналитику…'));
  const params=new URLSearchParams({date_from:$('date-from').value,date_to:$('date-to').value});for(const key of ['sku','campaign'])if($(key).value)params.set(key,$(key).value);
  try{const response=await fetch('/api/advertising?'+params);if(response.status===401){location.href='/login';return;}if(!response.ok)throw Error('Не удалось загрузить рекламу. Проверьте период или повторите позже.');const d=await response.json();if(request!==sequence)return;fill('campaign',d.options.campaigns.filter(c=>c.object_type==='SKU'),'campaign_id',c=>c.title);renderAdvertising(d);}catch(e){if(request===sequence){$('error').textContent=e.message;$('error').hidden=false;}}finally{if(request===sequence)$('apply').disabled=false;}
 }

@@ -26,15 +26,21 @@ def main():
         ],
     )
     parser.add_argument("path", nargs="?")
+    parser.add_argument(
+        "--now",
+        action="store_true",
+        help="Initial Performance sync before the daily schedule",
+    )
     args = parser.parse_args()
     if args.command == "check-backup":
         check_backup(args.path)
         print("Backup checksum verified")
+    elif args.command == "performance-collect":
+        collect_performance(force=args.now)
     else:
         {
             "migrate": migrate,
             "collect": collect,
-            "performance-collect": collect_performance,
             "monitor": monitor,
             "backup": backup,
         }[args.command]()

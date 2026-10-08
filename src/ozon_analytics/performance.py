@@ -516,8 +516,8 @@ def reports(api):
         finish_report(report, payload)
 
 
-def collect_performance():
-    if datetime.now(MSK).strftime("%H:%M") < "10:10":
+def collect_performance(force=False):
+    if not force and datetime.now(MSK).strftime("%H:%M") < "10:10":
         return
     with connect() as lock:
         if not lock.execute(
