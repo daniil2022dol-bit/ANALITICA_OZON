@@ -10,7 +10,8 @@ function renderAdvertising(d){
  $('freshness').textContent=`Performance · полные дни отчёта Ozon · загрузка ${stamp(d.jobs.find(j=>j.job==='ads_facts'&&j.status==='success')?.finished_at)} · данные из PostgreSQL`;
  $('filter-summary').textContent=$('date-from').value+' — '+$('date-to').value+' · '+($('campaign').selectedOptions[0]?.text||'Все кампании CPC')+($('sku').value?' · '+$('sku').selectedOptions[0]?.text:'')+' · Фильтры';
  const cautions=[];
- for(const c of d.campaigns){if(c.spend>=500&&c.revenue===0)cautions.push(row(c.title,'Есть расходы, атрибутированная выручка — ноль','',detail('Расход за период',adMoney(c.spend)),badge('Проверить','warning')));if(c.state==='CAMPAIGN_STATE_STOPPED')cautions.push(row(c.title,'Текущее состояние кампании: остановлена из-за бюджета','','',badge('Бюджет','warning')));}
+ for(const c of d.campaigns){if(c.spend>=500&&c.revenue===0)cautions.push(row(c.title,'Есть расходы, атрибутированная выручка — ноль','',detail('Расход за период',adMoney(c.spend)),badge('Проверить','warning')));}
+ for(const c of d.options.campaigns)if(c.object_type==='SKU'&&c.state==='CAMPAIGN_STATE_STOPPED'&&(!$('campaign').value||String(c.campaign_id)===$('campaign').value)&&(!d.sku_filtered||d.campaigns.some(r=>r.campaign_id===c.campaign_id)))cautions.push(row(c.title,'Текущее состояние кампании: остановлена из-за бюджета','','',badge('Бюджет','warning')));
  for(const p of d.products)if(p.spend>0&&p.available===0)cautions.push(row(p.offer_id||p.sku,p.title||'Товар','',detail('Расход за период',adMoney(p.spend))+detail('Сейчас доступно FBO','0 шт. · '+d.stock_day),badge('Остаток','warning')));
  const pending=d.reports.filter(r=>['queued','requesting','pending','uncertain','failed'].includes(r.status));
  const cpo=d.cpo.summary;

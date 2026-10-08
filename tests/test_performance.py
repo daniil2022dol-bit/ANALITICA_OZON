@@ -412,3 +412,22 @@ def test_catalog_detects_stuck_pagination(db):
             conn.execute("SELECT count(*) n FROM ozon.ads_campaign").fetchone()["n"]
             == 0
         )
+
+
+def test_partial_sku_days_are_unpublished_and_new_campaign_keeps_old_history(db):
+    catalog(campaign_api())
+    ingest_sku({"rows": [sku_row()]}, DAY, DAY, [10], "sku")
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO ozon.ads_campaign(client_id,campaign_id,title,state,object_type,raw) VALUES(123,11,'New','CAMPAIGN_STATE_RUNNING','SKU','{\"createdAt\":\"2026-10-07T10:00:00Z\"}')"
+        )
+    assert advertising(DAY, DAY, sku=100)["summary"]["spend"] == 100
+    # New campaigns must not invalidate older coverage; incomplete existing
+    # campaign exports must not publish partial SKU totals as a full day.
+    with db() as conn:
+        conn.execute(
+            'UPDATE ozon.ads_campaign SET raw=\'{"createdAt":"2026-10-01T10:00:00Z"}\' WHERE campaign_id=11'
+        )
+    result = advertising(DAY, DAY, sku=100)
+    assert result["summary"]["spend"] is None
+    assert result["products"] == []

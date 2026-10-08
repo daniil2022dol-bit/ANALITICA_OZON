@@ -1,7 +1,9 @@
 """SQL-only advertising dashboard. Ratios use summed numerators/denominators."""
 
 from collections import defaultdict
+from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from .config import settings
 from .database import connect
@@ -53,7 +55,7 @@ def advertising(date_from, date_to, sku=None, campaign=None):
     with connect(web=True) as conn:
         campaigns = list(
             conn.execute(
-                "SELECT campaign_id,title,state,object_type,payment_type,placements,weekly_budget,fetched_at FROM ozon.ads_campaign WHERE client_id=%s ORDER BY title",
+                "SELECT campaign_id,title,state,object_type,payment_type,placements,weekly_budget,fetched_at,raw->>'createdAt' AS created_at FROM ozon.ads_campaign WHERE client_id=%s ORDER BY title",
                 (client,),
             )
         )
@@ -151,19 +153,34 @@ def advertising(date_from, date_to, sku=None, campaign=None):
             (client,),
         ).fetchone()
     covered_days = {r["day"] for r in coverage if r["kind"] == "daily"}
-    relevant = (
-        {campaign}
-        if campaign is not None
-        else {r["campaign_id"] for r in campaigns if r["object_type"] == "SKU"}
-    )
+    created = {}
+    for row in campaigns:
+        try:
+            created[row["campaign_id"]] = (
+                datetime.fromisoformat(row["created_at"])
+                .astimezone(ZoneInfo("Europe/Moscow"))
+                .date()
+            )
+        except (TypeError, ValueError):
+            created[row["campaign_id"]] = None
+    relevant = {
+        r["campaign_id"]
+        for r in campaigns
+        if r["object_type"] == "SKU"
+        and (campaign is None or r["campaign_id"] == campaign)
+    }
     detail_scopes = defaultdict(set)
     for row in coverage:
         if row["kind"] in ("sku", "detail"):
             detail_scopes[row["day"]].add(int(row["scope"]))
-    detail_days = {
-        day for day, scope in detail_scopes.items() if relevant and relevant <= scope
-    }
+    detail_days = set()
+    for day, scope in detail_scopes.items():
+        expected = {c for c in relevant if created[c] is None or created[c] <= day}
+        if relevant and expected <= scope:
+            detail_days.add(day)
     headline_days = detail_days if sku is not None else covered_days
+    headline_facts = [r for r in facts if r["day"] in headline_days]
+    products = [r for r in products if r["day"] in detail_days]
     byday = defaultdict(list)
     for row in facts:
         byday[row["day"]].append(row)
@@ -193,9 +210,9 @@ def advertising(date_from, date_to, sku=None, campaign=None):
         for row in cpo
     }
     return {
-        "summary": totals(facts, bool(headline_days)),
+        "summary": totals(headline_facts, bool(headline_days)),
         "daily": daily,
-        "campaigns": groups(facts, "campaign_id", metadata),
+        "campaigns": groups(headline_facts, "campaign_id", metadata),
         "products": product_groups,
         "options": {"campaigns": campaigns, "products": product_options},
         "coverage": sorted(headline_days),
