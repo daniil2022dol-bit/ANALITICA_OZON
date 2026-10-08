@@ -29,6 +29,12 @@ def main():
                 is_mobile=width < 800,
                 has_touch=width < 800,
             )
+            page.add_init_script("""const originalFetch=window.fetch;let delayed=false;
+                window.fetch=(...args)=>originalFetch(...args).then(response=>{
+                  if(!delayed&&String(args[0]).includes('/api/dashboard?')){
+                    delayed=true;return new Promise(resolve=>setTimeout(()=>resolve(response),1500));
+                  }return response;
+                });""")
             errors = []
             advertising_requests = []
             page.on(
@@ -53,6 +59,10 @@ def main():
             )
             page.locator("input[name=password]").fill(os.environ["ADMIN_PASSWORD"])
             page.get_by_role("button", name="Войти").click()
+            page.wait_for_url(base + "/")
+            page.locator('button[data-tab="stocks"]').click()
+            page.wait_for_selector("#stocks .panel")
+            page.locator('button[data-tab="overview"]').click()
             page.wait_for_selector("#overview .kpi")
             page.screenshot(path=str(folder / f"{width}-overview.png"), full_page=True)
             assert not advertising_requests, "Advertising must load lazily"
