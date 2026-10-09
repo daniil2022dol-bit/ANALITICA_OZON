@@ -106,6 +106,8 @@ def main():
                     page.wait_for_selector("#storage-cost-chart")
                     assert storage_requests
                     assert page.locator("#storage .storage-kpis .kpi").count() == 4
+                    page.evaluate("window.scrollTo(0,0)")
+                    page.screenshot(path=str(folder / f"{width}-storage-top.png"))
                     page.locator("#storage-day-slider").fill("7")
                     page.locator("#storage-day-slider").dispatch_event("input")
                     assert page.locator("#storage-chart-value").text_content()
