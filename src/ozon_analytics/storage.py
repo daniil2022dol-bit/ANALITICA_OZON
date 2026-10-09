@@ -15,9 +15,10 @@ def number(value):
     if value is None or value == "":
         return None
     try:
-        return Decimal(
+        result = Decimal(
             str(value).replace(" ", "").replace("\xa0", "").replace(",", ".")
         )
+        return result if result.is_finite() else None
     except InvalidOperation:
         return None
 
@@ -35,7 +36,7 @@ def as_date(value):
     return None
 
 
-def parse_report(content, kind):
+def parse_report(content, kind, report_day=None):
     """Read confirmed Ozon columns; retain every row, including unknown fields.
 
     Supplies headers confirmed against the live report on 2026-10-07:
@@ -90,7 +91,7 @@ def parse_report(content, kind):
             supply = norm.get("номерпоставки")
             quantity = number(norm.get("колвоэкземпляров"))
             if kind == "supplies" and supply:
-                # The dated columns are quantities of this supply on those days.
+                # These are free placement allowances, not physical lot stock.
                 dated = [
                     number(v)
                     for h, v in zip(headers, values, strict=False)
@@ -98,6 +99,15 @@ def parse_report(content, kind):
                 ]
                 quantity = dated[-1] if dated else None
             free_days = number(norm.get("днейдоконцапериода")) if supply else None
+            row_day = as_date(norm.get("дата"))
+            stock_quantity = next(
+                (
+                    number(v)
+                    for h, v in norm.items()
+                    if h.startswith("остатокнаскладахна")
+                ),
+                None,
+            )
             result.append(
                 {
                     "row_number": len(result) + 1,
@@ -105,7 +115,7 @@ def parse_report(content, kind):
                     "offer_id": norm.get("артикул"),
                     "warehouse_name": norm.get("склад") or norm.get("складпоставки"),
                     "supply_id": str(supply) if supply else None,
-                    "row_day": as_date(norm.get("дата")),
+                    "row_day": row_day,
                     "free_until": as_date(norm.get("датаокончанияпериодапопоставкам"))
                     if supply
                     else None,
@@ -113,6 +123,13 @@ def parse_report(content, kind):
                     "quantity": quantity,
                     "paid_quantity": number(norm.get("колвоплатныхэкземпляров")),
                     "fee": number(norm.get("начисленнаястоимостьразмещения")),
+                    "volume_ml": number(norm.get("суммарныйобъемвмиллилитрах")),
+                    "paid_volume_ml": number(norm.get("платныйобъемвмиллилитрах")),
+                    "category": norm.get("категориятовара"),
+                    "product_type": norm.get("описательныйтип"),
+                    "item_feature": norm.get("признактовара"),
+                    "quantity_day": row_day if kind == "products" else report_day,
+                    "stock_quantity": stock_quantity,
                     "raw": raw,
                 }
             )

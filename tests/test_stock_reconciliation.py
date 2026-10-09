@@ -212,7 +212,7 @@ def test_migration_classifies_old_snapshots_without_changing_quantities(db):
     with db() as conn:
         conn.execute("DROP SCHEMA ozon CASCADE")
         conn.execute(
-            "DELETE FROM public.schema_migration WHERE name='004_stock_reconciliation.sql'"
+            "DELETE FROM public.schema_migration WHERE name >= '004_'"
         )
         for path in sorted(Path("db").glob("00[123]_*.sql")):
             conn.execute(

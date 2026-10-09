@@ -37,11 +37,20 @@ def main():
                 });""")
             errors = []
             advertising_requests = []
+            storage_requests = []
             page.on(
                 "request",
                 lambda request, captured=advertising_requests: (
                     captured.append(request.url)
                     if "/api/advertising?" in request.url
+                    else None
+                ),
+            )
+            page.on(
+                "request",
+                lambda request, captured=storage_requests: (
+                    captured.append(request.url)
+                    if "/api/storage/forecast?" in request.url
                     else None
                 ),
             )
@@ -90,8 +99,26 @@ def main():
             page.wait_for_selector("#overview .kpi")
             page.screenshot(path=str(folder / f"{width}-overview.png"), full_page=True)
             assert not advertising_requests, "Advertising must load lazily"
+            assert not storage_requests, "Storage forecast must load lazily"
             for tab in ["stocks", "sales", "storage", "advertising", "server"]:
                 page.locator(f'button[data-tab="{tab}"]').click()
+                if tab == "storage":
+                    page.wait_for_selector("#storage-cost-chart")
+                    assert storage_requests
+                    assert page.locator("#storage .storage-kpis .kpi").count() == 4
+                    page.evaluate("window.scrollTo(0,0)")
+                    page.screenshot(path=str(folder / f"{width}-storage-top.png"))
+                    page.locator("#storage-day-slider").fill("7")
+                    page.locator("#storage-day-slider").dispatch_event("input")
+                    assert page.locator("#storage-chart-value").text_content()
+                    page.locator("#storage .storage-group").first.locator(
+                        "summary"
+                    ).click()
+                    assert (
+                        page.locator("#storage .storage-group")
+                        .first.locator(".row")
+                        .first.is_visible()
+                    )
                 if tab == "advertising":
                     page.wait_for_selector("#advertising .kpi")
                     assert advertising_requests

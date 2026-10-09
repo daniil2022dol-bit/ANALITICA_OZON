@@ -18,6 +18,7 @@ from .config import settings
 from .database import connect
 from .queries import dashboard
 from .stock_queries import stock_source
+from .storage_forecast import storage_projection
 
 ROOT = Path(__file__).parent
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -238,6 +239,18 @@ def stocks_source(
         headers={
             "Content-Disposition": f'attachment; filename="ozon-stock-{kind}-{day}.json"'
         },
+    )
+
+
+@app.get("/api/storage/forecast")
+def storage_forecast_data(
+    as_of: date,
+    sku: int | None = None,
+    cluster: int | None = None,
+    warehouse: int | None = None,
+):
+    return JSONResponse(
+        jsonable_encoder(storage_projection(as_of, sku, cluster, warehouse))
     )
 
 

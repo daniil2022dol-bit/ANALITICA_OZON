@@ -636,7 +636,7 @@ def collect_storage(api):
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         path.write_bytes(content)
         path.chmod(0o600)
-        columns, rows = parse_report(content, kind)
+        columns, rows = parse_report(content, kind, report_day=day)
         with connect() as conn:
             warehouse_names = {}
             for w in conn.execute("SELECT * FROM ozon.warehouse"):

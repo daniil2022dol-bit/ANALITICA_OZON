@@ -5,3 +5,16 @@
 .ad-cpo{margin-top:18px}#campaign-filter{grid-column:1/-1}.panel summary{min-height:44px;cursor:pointer;font-size:13px;padding:12px 0}.bottom button{min-width:0;max-width:100px;flex:1}
 .stock-options,.source-links{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0}.stock-options label{display:flex;align-items:center;gap:8px;min-height:44px}.stock-options input{width:20px;min-height:20px;height:20px;accent-color:var(--green)}.source-link{display:inline-flex;align-items:center;min-height:44px;padding:10px 14px;border-radius:12px;font-size:13px}
 .filter-panel summary{overflow-wrap:anywhere}
+.storage-low{fill:none;stroke:#365f54;stroke-width:3;stroke-linejoin:round;stroke-linecap:round}
+.storage-high{fill:none;stroke:#ba8a30;stroke-width:2;stroke-dasharray:6 4;stroke-linejoin:round}
+.storage-grid{stroke:#e0e6dd;stroke-width:1}.storage-marker{stroke:#809088;stroke-dasharray:3 4}.storage-dot{fill:#123e3b}
+.storage-chart-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+.storage-chart-legend span:before{content:"";display:inline-block;width:20px;height:3px;background:#365f54;margin-right:6px;vertical-align:middle}
+.storage-chart-legend span+span:before{background:repeating-linear-gradient(90deg,#ba8a30 0 6px,transparent 6px 10px)}
+.storage-day-picker{margin-top:16px}.storage-day-picker input{padding:0;border:0;accent-color:var(--green);cursor:pointer;background:transparent}
+.storage-chart-value{display:block;margin-top:8px;font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.storage-group{border-top:1px solid var(--line);padding:12px 0}.storage-group summary{cursor:pointer;min-height:44px;overflow-wrap:anywhere}
+.storage-group summary strong{margin-right:10px}.storage-group summary span{display:block;margin:7px 0 0 20px;color:var(--muted);font-size:13px;line-height:1.5}
+.storage-kpis strong{font-size:24px;overflow-wrap:anywhere}.storage-group .rows{margin-top:12px}
+
+@media(max-width:800px){.storage-chart{height:auto;aspect-ratio:600/280}.storage-chart .chart-label{font-size:20px}}
