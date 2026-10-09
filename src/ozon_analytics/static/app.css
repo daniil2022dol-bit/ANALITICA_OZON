@@ -16,3 +16,5 @@
 .storage-group{border-top:1px solid var(--line);padding:12px 0}.storage-group summary{cursor:pointer;min-height:44px;overflow-wrap:anywhere}
 .storage-group summary strong{margin-right:10px}.storage-group summary span{display:block;margin:7px 0 0 20px;color:var(--muted);font-size:13px;line-height:1.5}
 .storage-kpis strong{font-size:24px;overflow-wrap:anywhere}.storage-group .rows{margin-top:12px}
+
+@media(max-width:800px){.storage-chart{height:auto;aspect-ratio:600/280}.storage-chart .chart-label{font-size:20px}}

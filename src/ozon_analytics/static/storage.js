@@ -11,13 +11,13 @@ function storagePage(d){
  panel('Состояние отчётов',d.reports.map(r=>row(r.kind==='supplies'?'Бесплатные лимиты по поставкам':'Начисления по товарам',r.day,'','',badge(r.status,r.status))).join('')||empty('Отчёты ещё не запрошены'));
 }
 function storageChart(points,index=0){
- const w=600,h=240,left=58,right=582,top=22,bottom=194;
+ const w=600,h=240,left=90,right=582,top=22,bottom=194;
  const max=Math.max(1,...points.flatMap(p=>[Number(p.low),Number(p.high??p.low)]));
  const xy=(p,i,value)=>`${left+i/(points.length-1||1)*(right-left)},${bottom-Number(p[value])/max*(bottom-top)}`;
  const stepped=key=>points.flatMap((p,i)=>i?[xy({...p,[key]:points[i-1][key]},i,key),xy(p,i,key)]:[xy(p,i,key)]).join(' ');
  const line=key=>points.every(p=>p[key]!=null)?`<polyline class="storage-${key}" points="${stepped(key)}"/>`:'';
  const x=left+index/(points.length-1||1)*(right-left),p=points[index];
- return `<svg id="storage-cost-chart" class="chart storage-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Прогноз начислений за день на 30 дней вперёд"><title>Без продаж и новых поставок; тарифы остаются прежними</title>${[0,0.5,1].map(k=>`<line class="storage-grid" x1="${left}" x2="${right}" y1="${bottom-k*(bottom-top)}" y2="${bottom-k*(bottom-top)}"/><text class="chart-label" x="3" y="${bottom-k*(bottom-top)+4}">${num(max*k)}</text>`).join('')}${line('high')}${line('low')}<line class="storage-marker" x1="${x}" x2="${x}" y1="${top}" y2="${bottom}"/><circle cx="${x}" cy="${bottom-Number(p.low)/max*(bottom-top)}" r="5" class="storage-dot"/>${[0,7,14,21,30].map(i=>`<text class="chart-label" text-anchor="${i===30?'end':i===0?'start':'middle'}" x="${left+i/30*(right-left)}" y="224">${esc(storageDate(points[i].day).slice(0,5))}</text>`).join('')}</svg>`;
+ return `<svg id="storage-cost-chart" class="chart storage-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Прогноз начислений за день на 30 дней вперёд"><title>Без продаж и новых поставок; тарифы остаются прежними</title>${[0,0.5,1].map(k=>`<line class="storage-grid" x1="${left}" x2="${right}" y1="${bottom-k*(bottom-top)}" y2="${bottom-k*(bottom-top)}"/><text class="chart-label" x="3" y="${bottom-k*(bottom-top)+4}">${Number(max*k).toLocaleString('ru-RU',{maximumFractionDigits:0})}</text>`).join('')}${line('high')}${line('low')}<line class="storage-marker" x1="${x}" x2="${x}" y1="${top}" y2="${bottom}"/><circle cx="${x}" cy="${bottom-Number(p.low)/max*(bottom-top)}" r="5" class="storage-dot"/>${[0,7,14,21,30].map(i=>`<text class="chart-label" text-anchor="${i===30?'end':i===0?'start':'middle'}" x="${left+i/30*(right-left)}" y="224">${esc(storageDate(points[i].day).slice(0,5))}</text>`).join('')}</svg>`;
 }
 function storageGroups(rows,renderRows){
  const groups=new Map();for(const r of rows){if(!groups.has(r.sku))groups.set(r.sku,[]);groups.get(r.sku).push(r);}
